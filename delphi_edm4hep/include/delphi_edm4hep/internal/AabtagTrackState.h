@@ -18,7 +18,8 @@ namespace delphi_edm4hep::aabtag {
 // nothing usable for this event.
 std::unordered_map<int, int> lpaToTrack();
 
-// The state AABTAG measured for its track `i`.
-edm4hep::TrackState vertexState(int i);
+// The state AABTAG measured for its track `i`, whose charge is `charge`
+// (+1/-1; AABTAG's impact-parameter sign depends on it).
+edm4hep::TrackState vertexState(int i, int charge);
 
 }  // namespace delphi_edm4hep::aabtag

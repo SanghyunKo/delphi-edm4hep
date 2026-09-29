@@ -50,6 +50,14 @@ TMatrixD teJacobian(double theta, double phi, double invP,
   const double k      = -kOmega * B_tesla;   // omega = k * invP (/ sin theta)
   J(0, 0) = -std::sin(phi) * kCm2Mm;
   J(0, 1) =  std::cos(phi) * kCm2Mm;
+  // The reference point is the measured point itself. Moving it along the
+  // track moves where the helix passes the reference: Z0 by -tanLambda and
+  // phi by +omega per unit transverse length.
+  const double omega = invPt ? k * invP : k * invP / s;
+  J(1, 0) = omega * std::cos(phi) * kCm2Mm;
+  J(1, 1) = omega * std::sin(phi) * kCm2Mm;
+  J(3, 0) = -(c / s) * std::cos(phi) * kCm2Mm;
+  J(3, 1) = -(c / s) * std::sin(phi) * kCm2Mm;
   J(1, 4) = 1.0;
   // omega = transverse curvature. The omega-row partials must match whichever
   // momentum form fromTrackElement uses: omega = k*invP (no theta dep) when the

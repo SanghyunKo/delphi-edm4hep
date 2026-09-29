@@ -626,8 +626,9 @@ VD-only and ID+VD-without-z tracks).
   (9 HPC / 26 EMF), `[1]` number of showers.
 - `fDST_TDID_DriftCalib` (ParticleID, algType 17) — `[0]` signed jet sector,
   `[1]` number of valid drift wires, `[2]` sum of drift times.
-- `fDST_EMCA_HPCClusters` (CalorimeterHit) — per-pad HPC: `energy` =
-  photo-electrons, `energyError` = σ_z, `type` = layer (1..10), `position` mm.
+- `fDST_EMCA_HPCClusters` (CalorimeterHit) — per-pad HPC: `energy` in GeV,
+  `type` = layer (1..10), `position` mm. `energyError` is `NaN`: PXHGET gives no
+  energy error. Its σ_z (the drift-time error on z) is not carried.
 - `fDST_EMCA_FEMCLayers` (CalorimeterHit) — per-layer FEMC: `energy` = layer
   energy, `type` = layer, `cellID` = n hits, `position` = shower centroid.
 - `fDST_HCAL_Towers` (CalorimeterHit) — per-tower HCAL: `energy` = tower

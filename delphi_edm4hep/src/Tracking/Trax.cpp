@@ -29,6 +29,7 @@
 #include <edm4hep/TrackState.h>
 
 #include <cmath>
+#include <limits>
 #include <string>
 
 namespace ph = phdst;
@@ -42,6 +43,7 @@ constexpr int kCountWord   = 1;
 constexpr int kWordsNoCov  = 8;
 constexpr int kWordsWithCov = 23;
 constexpr int kCovWords    = 15;
+constexpr float kNotMeasured = std::numeric_limits<float>::quiet_NaN();
 
 // TANAGRA detector id -> edm4hep TrackState location. The calorimeter surfaces
 // are HPC(9), HAB(13), HAF(22) and EMF(26); id 0 is the track's own first
@@ -126,8 +128,11 @@ void TraxWriter::emit()
           has_cov ? covariance(lpt, cylindrical) : CovMatrix6{},
           B);
 
-      out.pa_to_states[paIdx].push_back(
-          helix.toTrackState(locationForDetector(det_id)));
+      auto state = helix.toTrackState(locationForDetector(det_id));
+      // Not every TRAX point carries a covariance; mark it as not measured
+      // rather than leaving zeros that read as exact.
+      if (!has_cov) state.covMatrix.values.fill(kNotMeasured);
+      out.pa_to_states[paIdx].push_back(state);
 
       lpt += n_words + kCountWord;
     }

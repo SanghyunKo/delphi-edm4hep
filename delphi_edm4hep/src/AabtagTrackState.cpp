@@ -27,13 +27,14 @@ std::unordered_map<int, int> lpaToTrack() {
   return out;
 }
 
-edm4hep::TrackState vertexState(int i) {
+edm4hep::TrackState vertexState(int i, int charge) {
   edm4hep::TrackState st{};
   st.location = edm4hep::TrackState::AtVertex;
-  // D0 is negated into the EDM4hep convention, as the perigee state is
-  // (Helix::fromPerigee); AABTAG stores the DELPHI sign. Z0 is not.
-  st.D0        = static_cast<float>(-PARIMP(i) * kCm2Mm);
-  st.Z0        = static_cast<float>( EZED  (i) * kCm2Mm);
+  // AAdcae (aabtagxx.car:12997) signs PARIMP positive when the vertex lies
+  // outside the track circle, which is -charge times the EDM4hep D0; EZED is
+  // vertex z minus track z, the negative of the EDM4hep Z0.
+  st.D0        = static_cast<float>(-charge * PARIMP(i) * kCm2Mm);
+  st.Z0        = static_cast<float>(-EZED(i) * kCm2Mm);
   st.phi       = kNotMeasured;
   st.omega     = kNotMeasured;
   st.tanLambda = kNotMeasured;

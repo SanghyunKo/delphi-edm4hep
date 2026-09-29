@@ -232,14 +232,11 @@ void TrackingWriter::emit()
     // use, against its own primary vertex. That is a property of the track,
     // so it rides here as a state at that vertex rather than in a parallel
     // array; a track AABTAG skipped simply has no AtVertex state.
-    //
-    // D0 is negated into the EDM4hep convention, as the perigee above is
-    // (Helix::fromPerigee) -- AABTAG stores the DELPHI sign. Z0 is not
-    // negated, matching the same routine. Only these two components are
-    // measured; the rest stay NaN rather than zero, which would claim a
-    // measurement that was never made.
+    // Only D0 and Z0 are measured; the rest stay NaN rather than zero, which
+    // would claim a measurement that was never made.
     if (auto it = lpa_to_btag.find(lpa); it != lpa_to_btag.end()) {
-      trk.addToTrackStates(aabtag::vertexState(it->second));
+      trk.addToTrackStates(
+          aabtag::vertexState(it->second, pawalk::trueCharge(lpa)));
     }
 
     // Track elements reconstructed from this PA, decoded by
