@@ -8,6 +8,7 @@
 // daughters.
 
 #include "delphi_edm4hep/Vertex/Vertex.h"
+#include "delphi_edm4hep/internal/BeamSpotStatus.h"
 
 #include "skelana/pscbsp.hpp"
 #include "skelana/pscphc.hpp"
@@ -26,6 +27,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -288,24 +290,23 @@ void VertexWriter::emit()
   }
 
   // ----- Beam spot (PSCBSP) -----
+  // Always one entry. NaN position and covariance when there is no usable
+  // database entry (see internal/BeamSpotStatus.h).
   {
+    const bool usable = beamspot::positionUsable(sk::IERRBS);
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    auto pos = [&](int i) {
+      return usable ? sk::XYZBS(i) * static_cast<float>(kCm2Mm) : nan;
+    };
+    auto var = [&](int i) {
+      return usable ? sk::DXYZBS(i) * sk::DXYZBS(i) * kCm2Mm2_f : nan;
+    };
     auto bs = bspCol.create();
     bs.setPrimary(false);
     bs.setAlgorithmType(kAlgoBeamSpot);
-    bs.setPosition({
-      sk::XYZBS(1) * static_cast<float>(kCm2Mm),
-      sk::XYZBS(2) * static_cast<float>(kCm2Mm),
-      sk::XYZBS(3) * static_cast<float>(kCm2Mm),
-    });
+    bs.setPosition({pos(1), pos(2), pos(3)});
     // PSCBSP stores per-axis sigmas; we diagonalise (no off-diag info).
-    bs.setCovMatrix({
-      sk::DXYZBS(1) * sk::DXYZBS(1) * kCm2Mm2_f,   // XX
-      0.f,                                          // XY
-      sk::DXYZBS(2) * sk::DXYZBS(2) * kCm2Mm2_f,   // YY
-      0.f,                                          // XZ
-      0.f,                                          // YZ
-      sk::DXYZBS(3) * sk::DXYZBS(3) * kCm2Mm2_f,   // ZZ
-    });
+    bs.setCovMatrix({var(1), 0.f, var(2), 0.f, 0.f, var(3)});
   }
 
   // ----- Delphi-official V0 candidates (PSCRV0) -----

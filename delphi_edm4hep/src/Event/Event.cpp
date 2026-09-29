@@ -10,6 +10,7 @@
 // than from the DST at all.
 
 #include "delphi_edm4hep/Event/Event.h"
+#include "delphi_edm4hep/internal/BeamSpotStatus.h"
 
 #include "phdst/functions.hpp"  // IPHPIC
 #include "phdst/phciii.hpp"
@@ -19,6 +20,7 @@
 #include "skelana/pscevt.hpp"
 
 #include <cstddef>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -50,9 +52,9 @@ std::string processingTag() {
                            + ", event " + std::to_string(ph::IIIEVT) + ')');
 }
 
-// The beam energy and the beam spot each have a failure mode SKELANA does not
-// report: it substitutes a value and carries on, and the substitute reaches the
-// output looking like a measurement.
+// The beam energy has a failure mode SKELANA does not report: it substitutes a
+// value and carries on, and the substitute reaches the output looking like a
+// measurement. (The beam spot's is handled in internal/BeamSpotStatus.h.)
 void checkEventIsUsable() {
   // Without the DANA pilot blocklet the centre-of-mass energy is not read but
   // set to 91.250 GeV (skelana.car:2743-2748). That substitution cannot be
@@ -67,14 +69,6 @@ void checkEventIsUsable() {
   // it rejects every charged track.
   if (sk::ECMAS <= 0.f) {
     refuse("centre-of-mass energy is " + std::to_string(sk::ECMAS) + " GeV");
-  }
-
-  // VDBSPT returns without setting IERRBS when it cannot open the
-  // per-processing .DB file (vdbeam.car:1167-1171), leaving the position at the
-  // origin with no error raised, so BeamSpotErrorCode alone cannot be trusted.
-  if (sk::XYZBS(1) == 0.f && sk::XYZBS(2) == 0.f && sk::XYZBS(3) == 0.f) {
-    refuse("beam spot is exactly (0,0,0); the per-processing .DB lookup did "
-           "not produce a position");
   }
 }
 }  // namespace
@@ -131,16 +125,21 @@ void EventWriter::emit() {
   counted("ENeutralHad",      sk::EHNEU);
 
   // Beam spot from the per-processing database under $DELPHI_DAT, selected by
-  // the DSTQID tag and looked up per run and cartridge — not from the DST.
-  // For simulation it is instead the generated interaction point plus a
-  // Gaussian smear, so it follows the event rather than describing a beam.
+  // the DSTQID tag and looked up per run and file — not from the DST. For
+  // simulation it is instead the generated interaction point plus a Gaussian
+  // smear, so it follows the event rather than describing a beam. Without a
+  // usable entry (BeamSpotErrorCode 2) position and widths are NaN.
+  const bool usable = beamspot::positionUsable(sk::IERRBS);
+  auto bs = [&](float cm) {
+    return usable ? cm * kCm2Mm : std::numeric_limits<float>::quiet_NaN();
+  };
   auto beamspot = parameters("EVT", Provenance::Derived);
-  beamspot("BeamSpotX",      sk::XYZBS(1) * kCm2Mm);
-  beamspot("BeamSpotY",      sk::XYZBS(2) * kCm2Mm);
-  beamspot("BeamSpotZ",      sk::XYZBS(3) * kCm2Mm);
-  beamspot("BeamSpotSigmaX", sk::DXYZBS(1) * kCm2Mm);
-  beamspot("BeamSpotSigmaY", sk::DXYZBS(2) * kCm2Mm);
-  beamspot("BeamSpotSigmaZ", sk::DXYZBS(3) * kCm2Mm);
+  beamspot("BeamSpotX",      bs(sk::XYZBS(1)));
+  beamspot("BeamSpotY",      bs(sk::XYZBS(2)));
+  beamspot("BeamSpotZ",      bs(sk::XYZBS(3)));
+  beamspot("BeamSpotSigmaX", bs(sk::DXYZBS(1)));
+  beamspot("BeamSpotSigmaY", bs(sk::DXYZBS(2)));
+  beamspot("BeamSpotSigmaZ", bs(sk::DXYZBS(3)));
   beamspot("BeamSpotErrorCode", sk::IERRBS);
 }
 

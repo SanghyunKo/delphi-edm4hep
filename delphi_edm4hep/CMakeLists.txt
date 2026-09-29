@@ -73,6 +73,7 @@ find_package(DelphiAL9 REQUIRED)
 # linker dance because the DELPHI archives have circular symbol deps).
 add_library(delphi_edm4hep
   src/AabtagTrackState.cpp
+  src/BeamSpotStatus.cpp
   src/BankPrefix.cpp
   src/DstCensus.cpp
   src/BankReader.cpp

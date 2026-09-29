@@ -18,6 +18,7 @@
 #include "delphi_edm4hep/Tracking/Tracking.h"
 
 #include "delphi_edm4hep/internal/AabtagTrackState.h"
+#include "delphi_edm4hep/internal/BeamSpotStatus.h"
 
 #include "skelana/pscbsp.hpp"
 
@@ -132,7 +133,9 @@ void TrackingWriter::emit()
     if (vecp_i >= 1) {
       d0PvCol.push_back(sk::QTRAC(38, vecp_i) * 10.f);  // cm -> mm
       z0PvCol.push_back(sk::QTRAC(39, vecp_i) * 10.f);  // cm -> mm
-      d0BsCol.push_back(sk::QTRAC(40, vecp_i) * 10.f);  // cm -> mm
+      d0BsCol.push_back(delphi_edm4hep::beamspot::positionUsable(sk::IERRBS)
+                            ? sk::QTRAC(40, vecp_i) * 10.f   // cm -> mm
+                            : kNaN);
     } else {
       d0PvCol.push_back(kNaN);
       z0PvCol.push_back(kNaN);

@@ -7,6 +7,7 @@
 //        delphi_sdst_pass -N|--nickname <nickname> <output.edm4hep.root> [-n MAX]
 //        delphi_sdst_pass -P|--pdl <pdlinput> <output.edm4hep.root> [-n MAX]
 
+#include "delphi_edm4hep/internal/BeamSpotStatus.h"
 #include "delphi_edm4hep/CollectionWriter.h"   // EventContext
 #include "delphi_edm4hep/Btag/Btag.h"
 #include "delphi_edm4hep/PhdstHarness.h"
@@ -132,6 +133,7 @@ int main(int argc, char** argv) {
   // Vertex. Writers run under Pass::Sdst; the prefix on each
   // collection follows its bank.
   cfg.on_event = [](podio::Frame& frame, int /*run*/, int /*evt*/) {
+    delphi_edm4hep::beamspot::requireDatabase();
     delphi_edm4hep::EventContext ctx;
 
     // All writers (CollectionWriter base + ctx-mediated I/O).
