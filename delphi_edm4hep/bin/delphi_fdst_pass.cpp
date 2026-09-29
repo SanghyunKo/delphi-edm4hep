@@ -9,6 +9,7 @@
 // Usage: delphi_fdst_pass <intermediate.edm4hep.root> <input.fadana>
 //                        <output.edm4hep.root> [-n MAX]
 
+#include "delphi_edm4hep/internal/BeamSpotStatus.h"
 #include "delphi_edm4hep/CollectionWriter.h"   // EventContext
 #include "delphi_edm4hep/Btag/Btag.h"
 #include "delphi_edm4hep/PhdstHarness.h"
@@ -122,6 +123,7 @@ int main(int argc, char** argv) {
   // state (e.g. fdst_pa_to_sdst_track from MatchProvenanceWriter
   // is consumed by later writers).
   cfg.on_event = [](podio::Frame& frame, int /*run*/, int /*evt*/) {
+    delphi_edm4hep::beamspot::requireDatabase();
     using namespace delphi_edm4hep;
     EventContext ctx;
     // MatchProvenanceWriter must run FIRST: it populates

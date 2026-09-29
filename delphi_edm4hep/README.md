@@ -247,8 +247,10 @@ Per-event scalars stored as podio Frame parameters:
   flag), `nChargedTeam4`, `nCharged`, `nNeutral`.
 - Energies (GeV): `ECMS` (centre-of-mass), `EChargedTotal`, `ENeutralEM`,
   `ENeutralHad`.
-- Beam spot: `BeamSpotX/Y/Z` and `BeamSpotSigmaX/Y/Z` (mm),
-  `BeamSpotErrorCode` (0 if the beamspot bank is valid).
+- Beam spot: `BeamSpotX/Y/Z` and `BeamSpotSigmaX/Y/Z` (mm), from the
+  per-processing beam-spot database, not the DST. `BeamSpotErrorCode`: 0 this
+  run-file's entry, 1 the preceding entry, 2 no usable entry. Position and
+  widths are NaN for 2.
 - Magnetic field: `BField` (Tesla) and `BFieldGevPerCm` (the
   curvature-to-momentum conversion factor).
 
@@ -329,7 +331,8 @@ VD-only and ID+VD-without-z tracks).
   impact parameters of each track w.r.t. the primary vertex (`d0PV`, `z0PV`)
   and the beam spot (`d0BS`), mm; parallel to `sDST_TRAC_Tracks` (charged
   only — neutrals have no entry), NaN when no PV/BS-corrected value is
-  available for that track.
+  available for that track. `d0BS` is NaN for every track when
+  `sDST_EVT_BeamSpotErrorCode` is 2.
 - `sDST_VECP_Particles_SelectionFlag` (UserData&lt;int32&gt;) — raw per-particle DELPHI lock/status
   mask; bit 1 marks track-selection failure and bit 32 multi-vertex/REMCLU
   locking. Other bits are preserved without reinterpretation. −1 marks a
@@ -385,7 +388,8 @@ VD-only and ID+VD-without-z tracks).
   `sDST_AABTAG_TrackTag` rows carry an attached-to-PV flag.
 - `sDST_BSP_BeamSpot` (Vertex, 1 entry) — the official beamspot: position with
   a diagonal covariance built from the beam widths; `algorithmType = 2` marks
-  "beamspot bank, not a fit". (See also `delphi_bs_fit` in §3.)
+  "beamspot bank, not a fit". Position and covariance are NaN when
+  `sDST_EVT_BeamSpotErrorCode` is 2. (See also `delphi_bs_fit` in §3.)
 - `sDST_V0_V0Candidates` (Vertex) — the official DELPHI V0 vertices (K⁰s / Λ /
   γ-conversion candidates); `position` from the V0 fit, with the two daughter
   particles in the `particles` relation. (Covariance is left zero — the bank's
