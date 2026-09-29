@@ -28,7 +28,12 @@ constexpr float kCm2Mm = 10.f;
 // used: it is a legal measured value.
 constexpr float kNotMeasured = std::numeric_limits<float>::quiet_NaN();
 
-// TE-basis field indices used by te_bank::Decoded::has_meas.
+// TE-basis field indices used by te_bank::Decoded::has_meas. The first two
+// coordinates are (x, y) on a plane and (R*Phi, z) on a cylinder.
+constexpr int kBasisX     = 0;
+constexpr int kBasisY     = 1;
+constexpr int kBasisRPhi  = 1;
+constexpr int kBasisZ     = 2;
 constexpr int kBasisTheta = 3;
 constexpr int kBasisPhi   = 4;
 constexpr int kBasisInvP  = 5;
@@ -90,10 +95,17 @@ void TrackElementsWriter::emit()
             te.invP, te.invPt, te.is_cylindrical, te.cov, B);
 
         auto state = helix.toTrackState(edm4hep::TrackState::AtOther);
-        // A track element measures a point and a direction, never an impact
-        // parameter, and Helix leaves the unmeasured slots at zero.
-        state.D0 = kNotMeasured;
-        state.Z0 = kNotMeasured;
+        // The reference point is on the fitted segment, so the helix passes
+        // through it: D0 = Z0 = 0 wherever that coordinate was measured. An
+        // unmeasured coordinate is a placeholder (e.g. z on an inner-detector
+        // jet-chamber element), so the offset it would define is not measured
+        // either. A cylinder fixes R and a plane fixes z.
+        const bool transverse = te.is_cylindrical
+            ? te.has_meas[kBasisRPhi]
+            : te.has_meas[kBasisX] && te.has_meas[kBasisY];
+        const bool longitudinal = te.is_cylindrical ? te.has_meas[kBasisZ] : true;
+        state.D0 = transverse   ? 0.f : kNotMeasured;
+        state.Z0 = longitudinal ? 0.f : kNotMeasured;
         if (!te.has_meas[kBasisPhi])   state.phi       = kNotMeasured;
         if (!te.has_meas[kBasisTheta]) state.tanLambda = kNotMeasured;
         if (!te.has_meas[kBasisInvP])  state.omega     = kNotMeasured;

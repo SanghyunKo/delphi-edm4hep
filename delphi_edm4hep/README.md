@@ -205,8 +205,9 @@ How each EDM4hep datatype is populated (units: mm, GeV, ns, rad throughout):
   DELPHI track-fit values. Charge and momentum are **not** on the Track — they
   are on the associated ReconstructedParticle.
 - **ReconstructedParticle** — `momentum` (px,py,pz), `energy`, `mass` (GeV);
-  `charge` in units of e (0 when the DELPHI charge code is "undefined");
-  `tracks` / `clusters` / `particleIDs` relations.
+  `charge` in units of e (`NaN` when the DELPHI charge code is "undefined",
+  i.e. charged with unknown sign); `tracks` / `clusters` / `particleIDs`
+  relations.
 - **Vertex** — `position` (mm); `covMatrix` is the 6-element lower triangle
   `(XX, XY, YY, XZ, YZ, ZZ)` in mm²; `chi2`, `ndf`; `primary` flag;
   `algorithmType`. The meaning of `particles` is collection-specific and is
@@ -365,7 +366,8 @@ VD-only and ID+VD-without-z tracks).
 - `sDST_MAIN_Particles` (ReconstructedParticle) — charged and neutral
   particles. The 4-momentum and mass come from the SKELANA combined-momentum
   vector (mass-hypothesis aware). `charge` = +1/−1 from the DELPHI charge code;
-  the "undefined" code maps to 0. Charged particles link to their
+  the "undefined" code (charged, sign unknown; the small-angle tracker) is
+  `NaN`, so it never reads as neutral. Charged particles link to their
   `sDST_TRAC_Tracks` entry.
 
 **Vertices**
@@ -576,8 +578,10 @@ VD-only and ID+VD-without-z tracks).
   > The stage digit is 0 on files written before PXDST 2.87.
   >
   > **Detectors measure different quantities, and what a module did not measure
-  > is `NaN` — never 0, which is a legal measured value.** `D0` and `Z0` are
-  > always `NaN`: a track element measures a point, not an impact parameter.
+  > is `NaN` — never 0, which is a legal measured value.** The reference point
+  > is on the fitted segment, so `D0` and `Z0` are 0 when the coordinate that
+  > defines them was measured and `NaN` otherwise (e.g. `Z0` on an
+  > inner-detector jet-chamber element, which does not measure z).
   > Typically the TPC gives direction and curvature, the inner detector
   > curvature but not the dip angle, and the outer detector, forward RICH and
   > straw tubes direction only. It varies element by element, so test for `NaN`

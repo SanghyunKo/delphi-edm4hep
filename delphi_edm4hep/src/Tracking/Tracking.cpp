@@ -295,12 +295,13 @@ void TrackingWriter::emit()
       }
     }
 
-    // Charge sign from PA.MAIN. Code 3 ("undefined") -> 0 (we preserve
-    // the ambiguity rather than mapping to +1 like the current code does).
-    int sign = 0;
-    if      (charge_code == 1) sign = +1;
-    else if (charge_code == 2) sign = -1;
-    // else: sign = 0 (undefined)
+    // Charge from PA.MAIN: 1 positive, 2 negative. Code 3 is DELPHI's "charged,
+    // sign unknown" (the small-angle tracker); DELPHI never assigns it a sign,
+    // so it is NaN here -- never 0, which would read as neutral.
+    float charge = 0.f;
+    if      (charge_code == 1) charge = +1.f;
+    else if (charge_code == 2) charge = -1.f;
+    else if (charge_code == 3) charge = kNotMeasured;
 
     float px = 0.f, py = 0.f, pz = 0.f, E = 0.f, mass = 0.f;
     if (vecp_i >= 1) {
@@ -321,7 +322,7 @@ void TrackingWriter::emit()
     pfo.setMomentum({px, py, pz});
     pfo.setEnergy(E);
     pfo.setMass(mass);
-    pfo.setCharge(static_cast<float>(sign));
+    pfo.setCharge(charge);
     pfo.addToTracks(trk);
     record_particle(pfo, vecp_i, paIdx);
 

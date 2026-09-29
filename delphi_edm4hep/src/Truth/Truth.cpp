@@ -105,12 +105,45 @@ void TruthGenWriter::emit() {
   edm4hep::MCParticleCollection mc;
   result.handles.reserve(static_cast<std::size_t>(nGen));
 
-  // Production vertices come from DELSIM's vertex banks, in cm and already in
-  // the frame of the reconstruction (PSFLUJ, skelana.car:7125-7127; PSHLUJ,
-  // skelana.car:5390-5392). Entries DELSIM did not track (generator-only) have
-  // VP = 0; they are placed at the simulated primary vertex. Gated on nGen>=1
-  // so real data (no LUJETS) never reads sim banks.
+  // Gated on nGen>=1 so real data (no LUJETS) never reads sim banks.
   const auto spv = nGen >= 1 ? read_sim_pv_mm() : std::nullopt;
+
+  // DELSIM records a production vertex (cm, in the frame of the
+  // reconstruction; PSFLUJ, skelana.car:7125-7127; PSHLUJ, skelana.car:
+  // 5390-5392) only for the particles it tracked through the detector.
+  // Generator-only entries -- partons, resonances and the products of decays
+  // done by the generator -- have VP = 0; they are placed from the decay chain
+  // below. LUJETS lists every parent before its daughters.
+  using Position = std::optional<std::array<double, 3>>;
+  std::vector<Position> productionPoint(nGen + 1), decayPoint(nGen + 1);
+  for (int i = 1; i <= nGen; ++i) {
+    const bool trackedByDelsim =
+        sk::VP(i, 1) != 0.f || sk::VP(i, 2) != 0.f || sk::VP(i, 3) != 0.f;
+    if (trackedByDelsim)
+      productionPoint[i] = {sk::VP(i, 1) * kCm2Mm, sk::VP(i, 2) * kCm2Mm,
+                            sk::VP(i, 3) * kCm2Mm};
+  }
+
+  // Decay point of each particle: where one of its tracked daughters starts.
+  // A generator-only daughter is a resonance that decays where it is made, so
+  // its own decay point stands in when no daughter was tracked. Walking the
+  // record backwards visits every daughter before its parent.
+  for (int daughter = nGen; daughter >= 1; --daughter) {
+    const int parent = sk::KP(daughter, 3);
+    if (parent < 1 || parent >= daughter) continue;
+    if (productionPoint[daughter])  decayPoint[parent] = productionPoint[daughter];
+    else if (!decayPoint[parent])   decayPoint[parent] = decayPoint[daughter];
+  }
+
+  // A generator-only particle starts where its parent decayed; failing that,
+  // where its parent started; with no parent, at the simulated primary vertex.
+  for (int particle = 1; particle <= nGen; ++particle) {
+    if (productionPoint[particle]) continue;
+    const int parent = sk::KP(particle, 3);
+    if (parent < 1 || parent >= particle)  productionPoint[particle] = spv;
+    else if (decayPoint[parent])           productionPoint[particle] = decayPoint[parent];
+    else                                   productionPoint[particle] = productionPoint[parent];
+  }
 
   // First pass: per-LU-index handle creation. KP(i,1)=status, KP(i,2)=PDG,
   // PP(i,1..3)=p, PP(i,5)=mass, VP(i,1..3)=production vertex (cm).
@@ -120,15 +153,7 @@ void TruthGenWriter::emit() {
     mp.setGeneratorStatus(static_cast<std::int16_t>(sk::KP(i, 1)));
     mp.setMomentum({sk::PP(i, 1), sk::PP(i, 2), sk::PP(i, 3)});
     mp.setMass(sk::PP(i, 5));
-    const bool tracked = sk::VP(i, 1) != 0.f || sk::VP(i, 2) != 0.f ||
-                         sk::VP(i, 3) != 0.f;
-    if (tracked) {
-      mp.setVertex({static_cast<double>(sk::VP(i, 1)) * kCm2Mm,
-                    static_cast<double>(sk::VP(i, 2)) * kCm2Mm,
-                    static_cast<double>(sk::VP(i, 3)) * kCm2Mm});
-    } else if (spv) {
-      mp.setVertex({(*spv)[0], (*spv)[1], (*spv)[2]});
-    }
+    if (const auto& v = productionPoint[i]) mp.setVertex({(*v)[0], (*v)[1], (*v)[2]});
     mp.setCharge(charge_from_pdg(sk::KP(i, 2)));
     result.handles.push_back(mp);
   }
