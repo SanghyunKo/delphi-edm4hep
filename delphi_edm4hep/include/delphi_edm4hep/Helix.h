@@ -11,12 +11,11 @@
 // 6×6 lower-tri covariance (time row/col always 0). Analysts can use this
 // header standalone to convert without running the converter.
 //
-//   omega [1/mm] = kOmega · q[e] · B[T] · (1/|p_T|)[1/GeV]   (transverse curvature)
-//     The TE bank momentum word is 1/|p_T| or 1/|p| per its descriptor, so
-//     fromTrackElement takes an invPt flag: omega is that word times kOmega·qB
-//     directly (1/|p_T|) or divided by sin(theta) (1/|p|). The perigee path
-//     sets omega = invR/10 = curvature directly; momentum() inverts omega as
-//     curvature too, so all three are now consistent.
+//   omega [1/mm] = transverse curvature with the sign of the charge (EDM4hep).
+//     DELPHI signs 1/R and 1/p geometrically: positive is counter-clockwise
+//     seen from +z, opposite to the charge in its field. The perigee path sets
+//     omega = -invR/10; fromTrackElement sets omega = -kOmega·B·invP, divided
+//     by sin(theta) when the word is 1/p rather than 1/p_T (invPt flag).
 //
 // Bank *parsing* (te_bank::decode for the TE descriptor/cov, hpc::padDecode
 // for PXHGET) is a separate concern and feeds the factories here — it is
@@ -74,8 +73,9 @@ class Helix {
 
   // DELPHI TE / TRAX surface (PA.TE*, PA.TRAX): reference point
   //   (c1, c2, c3) [cm] + direction (theta, phi) [rad] + invP [1/GeV],
-  //   TE-basis 6×6 cov, track charge (+1/-1/0) and B [T]. D0 = Z0 = 0 at
-  //   the reference point by construction.
+  //   TE-basis 6×6 cov and B [T]. invP must be signed geometrically, as
+  //   DELPHI writes it (positive = counter-clockwise). D0 = Z0 = 0 at the
+  //   reference point by construction.
   //   invPt: true if `invP` is 1/|p_T| (TE descriptor bit 11), false if 1/|p|;
   //   omega is formed accordingly so it equals the transverse curvature.
   //   cylindrical: true when the surface is a cylinder (TE descriptor bit 1),
@@ -87,7 +87,7 @@ class Helix {
                                 double theta, double phi, double invP,
                                 bool invPt, bool cylindrical,
                                 const CovMatrix6& teCov,
-                                int charge, double B);
+                                double B);
 
   // Already in the EDM4hep helix basis (no cov).
   static Helix fromHelix(float D0, float phi, float omega,

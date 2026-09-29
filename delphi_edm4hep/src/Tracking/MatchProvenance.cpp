@@ -9,6 +9,7 @@
 
 #include "delphi_edm4hep/Tracking/MatchProvenance.h"
 
+#include "delphi_edm4hep/Helix.h"
 #include "delphi_edm4hep/PerigeeMatch.h"
 #include "delphi_edm4hep/internal/PaWalk.h"
 
@@ -26,8 +27,6 @@ namespace ph = phdst;
 namespace delphi_edm4hep::matchprov {
 
 namespace {
-
-constexpr double kCm2Mm = 10.0;
 
 // Build sDST Track-index -> sDST Particle-index lookup by walking the
 // Particles collection's `tracks` relation once. O(N²) but N ~ 30.
@@ -100,14 +99,14 @@ void MatchProvenanceWriter::emit()
     const int ltrac = pawalk::lphpa("TRAC", lpa);
     if (ltrac <= 0) return;
 
-    // Extract DELPHI perigee (cm, rad, 1/cm) and convert to the
-    // EDM4hep helix-mm basis used by sdst_tracks.
-    const float d0_cm   = ph::Q(ltrac + 2);
-    const float z0_cm   = ph::Q(ltrac + 3);
-    const float invR_pc = ph::Q(ltrac + 6);   // 1/cm
-    const double D0_mm    = -static_cast<double>(d0_cm) * kCm2Mm;
-    const double Z0_mm    =  static_cast<double>(z0_cm) * kCm2Mm;
-    const double omega_pm =  static_cast<double>(invR_pc) / kCm2Mm;
+    // DELPHI perigee (cm, rad, 1/cm), converted exactly as the sDST tracks
+    // it is matched against.
+    const auto h = Helix::fromPerigee(ph::Q(ltrac + 2), ph::Q(ltrac + 3),
+                                      ph::Q(ltrac + 4), ph::Q(ltrac + 5),
+                                      ph::Q(ltrac + 6));
+    const double D0_mm    = h.params().D0;
+    const double Z0_mm    = h.params().Z0;
+    const double omega_pm = h.params().omega;
 
     // Charge sign — same encoding as Tracking.cpp (code 3 = undefined
     // -> 0, no perigee match for ambiguous charge).

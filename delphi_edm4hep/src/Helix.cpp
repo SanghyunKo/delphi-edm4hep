@@ -30,7 +30,7 @@ TMatrixD perigeeJacobian(double theta_dp) {
   const double inv_s2 = (s != 0.0) ? 1.0 / (s * s) : 0.0;
   J(0, 0) = -kCm2Mm;
   J(1, 3) = +1.0;
-  J(2, 4) = +1.0 / kCm2Mm;
+  J(2, 4) = -1.0 / kCm2Mm;      // omega = -invR/10, see fromPerigee
   J(3, 1) = +kCm2Mm;
   J(4, 2) = -inv_s2;
   return J;
@@ -40,26 +40,26 @@ TMatrixD perigeeJacobian(double theta_dp) {
 //   TE    : (c1, c2, c3, theta, phi, invP)  [cartesian c1=x,c2=y,c3=z]
 //   helix : (D0, phi, omega, Z0, tanLambda, time)
 TMatrixD teJacobian(double theta, double phi, double invP,
-                    int charge_signed, double B_tesla, bool invPt) {
+                    double B_tesla, bool invPt) {
   TMatrixD J(6, 6);
   J.Zero();
   const double s = std::sin(theta);
   const double c = std::cos(theta);
   if (std::fabs(s) < 1e-9) return J;
   const double inv_s2 = 1.0 / (s * s);
-  const double qB     = static_cast<double>(charge_signed) * B_tesla;
+  const double k      = -kOmega * B_tesla;   // omega = k * invP (/ sin theta)
   J(0, 0) = -std::sin(phi) * kCm2Mm;
   J(0, 1) =  std::cos(phi) * kCm2Mm;
   J(1, 4) = 1.0;
   // omega = transverse curvature. The omega-row partials must match whichever
-  // momentum form fromTrackElement uses: omega = kOmega*qB*invPt (no theta dep)
-  // when the bank word is 1/|p_T|, else omega = kOmega*qB*invP/sin(theta).
+  // momentum form fromTrackElement uses: omega = k*invP (no theta dep) when the
+  // bank word is 1/p_T, else omega = k*invP/sin(theta).
   if (invPt) {
     J(2, 3) = 0.0;
-    J(2, 5) = kOmega * qB;
+    J(2, 5) = k;
   } else {
-    J(2, 3) = -kOmega * qB * c * invP * inv_s2;   // d/dtheta[kOmega*qB*invP/sin]
-    J(2, 5) =  kOmega * qB / s;                    // d/d(invP)
+    J(2, 3) = -k * c * invP * inv_s2;   // d/dtheta[k*invP/sin]
+    J(2, 5) =  k / s;                    // d/d(invP)
   }
   J(3, 2) = kCm2Mm;
   J(4, 3) = -inv_s2;
@@ -103,7 +103,11 @@ Helix Helix::fromPerigee(float d0, float z0, float theta, float phi,
   Helix h;
   h.p_.D0    = -d0 * static_cast<float>(kCm2Mm);
   h.p_.phi   = phi;
-  h.p_.omega = invR / static_cast<float>(kCm2Mm);
+  // DELPHI's 1/R is signed geometrically: positive is counter-clockwise seen
+  // from +z, i.e. opposite to the charge in DELPHI's field (DST content, MAIN:
+  // "with the sign opposite to the charge sign"). EDM4hep's omega carries the
+  // sign of the charge.
+  h.p_.omega = -invR / static_cast<float>(kCm2Mm);
   h.p_.Z0    = z0 * static_cast<float>(kCm2Mm);
   h.p_.time  = 0.f;
 
@@ -147,7 +151,7 @@ Helix Helix::fromTrackElement(double c1, double c2, double c3,
                               double theta, double phi, double invP,
                               bool invPt, bool cylindrical,
                               const CovMatrix6& teCov,
-                              int charge, double B) {
+                              double B) {
   Helix h;
 
   // On a cylinder the stored triple is (R, R*Phi, z); convert it, and its
@@ -193,17 +197,15 @@ Helix Helix::fromTrackElement(double c1, double c2, double c3,
     return h;                            // cov_ stays zero
   }
   h.p_.tanLambda = static_cast<float>(std::cos(theta) / s);
-  // omega = transverse curvature kappa. If the bank word is 1/|p_T| (invPt),
-  // omega = kOmega*q*B*invP directly; otherwise it is 1/|p| and omega =
-  // kOmega*q*B*invP/sin(theta). (The earlier form multiplied by sin(theta),
-  // giving kappa*sin^2(theta) -- inconsistent with the perigee path's
-  // omega=invR/10=kappa and with momentum(), which treats omega=kappa.)
+  // invP is signed geometrically, as DELPHI writes it (positive =
+  // counter-clockwise), so omega = -kOmega*B*invP carries the sign of the
+  // charge; divided by sin(theta) when the word is 1/p rather than 1/p_T.
   h.p_.omega     = static_cast<float>(
-      invPt ? kOmega * charge * B * invP
-            : kOmega * charge * B * invP / s);
+      invPt ? -kOmega * B * invP
+            : -kOmega * B * invP / s);
 
   // Cov push-forward C_helix = J · C_te · J^T.
-  const TMatrixD    J  = teJacobian(theta, phi, invP, charge, B, invPt);
+  const TMatrixD    J  = teJacobian(theta, phi, invP, B, invPt);
   const TMatrixDSym Ct = covFromArray(cov);
   const TMatrixD    JC (J, TMatrixD::kMult, Ct);
   const TMatrixD    Jt (TMatrixD::kTransposed, J);

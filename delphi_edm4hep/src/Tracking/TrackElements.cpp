@@ -63,8 +63,6 @@ void TrackElementsWriter::emit()
       out.pa_to_segments.resize(paIdx + 1);
       out.pa_to_plane_hits.resize(paIdx + 1);
     }
-    const int charge = pawalk::conversionCharge(lpa);
-
     for (std::size_t m = 0; m < n; ++m) {
       const int lte = pawalk::lphpa(kTeModules[m].name, lpa);
       if (lte <= 0) continue;
@@ -89,7 +87,7 @@ void TrackElementsWriter::emit()
 
         const auto helix = Helix::fromTrackElement(
             te.coord[0], te.coord[1], te.coord[2], te.theta, te.phi,
-            te.invP, te.invPt, te.is_cylindrical, te.cov, charge, B);
+            te.invP, te.invPt, te.is_cylindrical, te.cov, B);
 
         auto state = helix.toTrackState(edm4hep::TrackState::AtOther);
         // A track element measures a point and a direction, never an impact

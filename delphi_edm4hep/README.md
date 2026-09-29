@@ -825,12 +825,16 @@ Helix::fromHelix(D0,phi,omega,Z0,tanLambda)
    -> .params() / .cov() / .momentum(B,q) / .toTrackState(location)
 ```
 
-with `omega = kOmega · q · B · (1/|p_T|)` (the transverse curvature), `kOmega =
-2.99792458e-4`. The TE bank momentum word is `1/|p_T|` or `1/|p|` per its descriptor,
-so `fromTrackElement` takes an `invPt` flag and divides by `sin(theta)` in the `1/|p|`
-case; the perigee path and `momentum()` treat `omega` as curvature too, so all are
-consistent. The covariance is a Jacobian push-forward (`J · C · Jᵀ`). The header is public
-so analysis code can convert track parameters (and recover momentum from
+with `omega` the transverse curvature carrying the sign of the charge, as EDM4hep
+requires. DELPHI signs `1/R` and `1/p` geometrically (positive is counter-clockwise
+seen from +z, opposite to the charge in its field), so the perigee path sets
+`omega = −invR/10` and `fromTrackElement` sets `omega = −kOmega · B · invP`
+(`kOmega = 2.99792458e-4`). The TE bank momentum word is `1/p_T` or `1/p` per its
+descriptor, so `fromTrackElement` takes an `invPt` flag and divides by `sin(theta)`
+in the `1/p` case. The muon/calorimeter extrapolation points of `PA.TRAX` store an
+unsigned `1/|p|`; the converter restores its sign from the track charge. The
+covariance is a Jacobian push-forward (`J · C · Jᵀ`). The header is public so
+analysis code can convert track parameters (and recover momentum from
 `omega` given B and charge) without running the converter. Raw bank *parsing*
 (`TeBank`, `HpcPadDecoder`) is separate and feeds the factories.
 

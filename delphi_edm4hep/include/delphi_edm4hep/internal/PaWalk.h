@@ -44,16 +44,15 @@ inline int iphreq(int nump = 1) {
   return phdst::iphreq_(&n);
 }
 
-// Charge sign in the convention Helix expects, from PA.MAIN word +8 (the
-// DELPHI charge code: 1 positive, 2 negative). DELPHI's curvature sign is
-// opposite to the charge, so the code is negated here; 0 for neutral or
-// undefined. Shared by the writers that build track states from PA banks.
-inline int conversionCharge(int lpa) {
+// Charge from PA.MAIN word +8 (the DELPHI charge code: 1 positive,
+// 2 negative); 0 for neutral or undefined. Used to restore the sign of
+// momentum words DELPHI stores unsigned.
+inline int trueCharge(int lpa) {
   const int lmain = lphpa("MAIN", lpa);
   if (lmain <= 0) return 0;
   const int code = static_cast<int>(std::lround(phdst::Q(lmain + 8)));
-  if (code == 1) return -1;
-  if (code == 2) return +1;
+  if (code == 1) return +1;
+  if (code == 2) return -1;
   return 0;
 }
 
