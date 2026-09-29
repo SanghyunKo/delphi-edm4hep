@@ -286,6 +286,11 @@ def select(table, want, strict=False):
     return good, rejected
 
 
+def measured(keys, lumi):
+    """Keys that also carry a non-zero luminosity record."""
+    return {k for k in keys if lumi.get(k, 0) > 0}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--year", required=True,
@@ -303,6 +308,9 @@ def main():
     parser.add_argument("--lumi-version", help="pin a dated recalibration")
     parser.add_argument("--no-lumi", action="store_true",
                         help="skip luminosity entirely")
+    parser.add_argument("--quality-only", action="store_true",
+                        help="select by detector quality alone, keeping "
+                             "run-files that have no luminosity record")
     parser.add_argument("--out", help="write the selection as JSON")
     args = parser.parse_args()
 
@@ -348,6 +356,13 @@ def main():
         before = len(good)
         good &= set(lumi)
         print(f"era {args.era}: kept {len(good)} of {before} selected")
+    if not args.quality_only:
+        if not lumi:
+            sys.exit(f"{named(args.year)} has no luminosity to require; pass "
+                     f"--quality-only to select by detector quality alone")
+        before = len(good)
+        good = measured(good, lumi)
+        print(f"kept {len(good)} of {before} with a luminosity record")
 
     print(f"selected {len(good)} of {len(table)}"
           f"  ({100*len(good)/max(len(table),1):.1f}%)")
@@ -367,6 +382,7 @@ def main():
         with open(args.out, "w") as out:
             json.dump({"year": args.year, "requirements": want,
                        "strict": args.strict, "era": args.era,
+                       "quality_only": args.quality_only,
                        "luminosity_file": source,
                        "selected": sorted(good)}, out, indent=1)
         print(f"wrote {args.out}")

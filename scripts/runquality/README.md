@@ -63,7 +63,8 @@ are flag 9 (unknown) in every row, so any requirement on them selects nothing.
 
     $ runquality.py --year 94 --require VD=1 ID=6 TPC=7 OD=6 MUB=5
 
-    selected 4121 of 5177  (79.6%)
+    kept 4008 of 4121 with a luminosity record
+    selected 4008 of 5177  (77.4%)
     luminosity 39.46 pb-1 over 4008 of them, from 46.30 pb-1 available
     rejected by: MUB_D 629, MUB_B 362, ID_TRIG 242, ID_JET 206, OD_B 130, ...
 
@@ -82,9 +83,11 @@ Measured from small-angle Bhabhas: the SAT through 1993, the STIC from 1994.
 LEP2 years are split by energy point (`_130`, `_183` GeV) and running period
 (`_P1`, `_P2`, `_Z0`), and 1993 carries both SAT and LUMI families. Those are
 different physics programmes and must not be summed together, so such years
-require `--era`, which also restricts the runs to that era. Years with a single
-set are left alone: a measurement that needs no luminosity should not lose runs
-that merely lack a record.
+require `--era`, which also restricts the runs to that era.
+
+Some runs have no luminosity record. By default these runs are dropped;
+`--quality-only` selects by detector quality alone. Years without a luminosity
+file (1990, 1991, 1995P3) need `--quality-only`.
 
 Each set has several dated recalibrations, and the newest is used unless
 `--lumi-version` names one. The 1994 sets differ by 0.03%:
@@ -102,9 +105,9 @@ many rows: adding those in quadrature understates it, adding them linearly
 overstates it. Only the delivered luminosity is reported.
 
 The two records do not cover the same runs. In 1994, 274 (run, fileSeq) have
-quality but no luminosity, and 22 have luminosity but no quality. Selected keys
-with no luminosity record are counted and reported rather than dropped
-silently.
+quality but no luminosity, and 22 have luminosity but no quality. By default
+selected keys without a luminosity record are dropped, and the count is
+printed.
 
 ## Checked against SKELANA
 
