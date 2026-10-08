@@ -205,8 +205,9 @@ How each EDM4hep datatype is populated (units: mm, GeV, ns, rad throughout):
   DELPHI track-fit values. Charge and momentum are **not** on the Track — they
   are on the associated ReconstructedParticle.
 - **ReconstructedParticle** — `momentum` (px,py,pz), `energy`, `mass` (GeV);
-  `charge` in units of e (0 when the DELPHI charge code is "undefined");
-  `tracks` / `clusters` / `particleIDs` relations.
+  `charge` in units of e (`NaN` when the DELPHI charge code is "undefined",
+  i.e. charged with unknown sign); `tracks` / `clusters` / `particleIDs`
+  relations.
 - **Vertex** — `position` (mm); `covMatrix` is the 6-element lower triangle
   `(XX, XY, YY, XZ, YZ, ZZ)` in mm²; `chi2`, `ndf`; `primary` flag;
   `algorithmType`. The meaning of `particles` is collection-specific and is
@@ -365,7 +366,8 @@ VD-only and ID+VD-without-z tracks).
 - `sDST_MAIN_Particles` (ReconstructedParticle) — charged and neutral
   particles. The 4-momentum and mass come from the SKELANA combined-momentum
   vector (mass-hypothesis aware). `charge` = +1/−1 from the DELPHI charge code;
-  the "undefined" code maps to 0. Charged particles link to their
+  the "undefined" code (charged, sign unknown; the small-angle tracker) is
+  `NaN`, so it never reads as neutral. Charged particles link to their
   `sDST_TRAC_Tracks` entry.
 
 **Vertices**
@@ -576,8 +578,10 @@ VD-only and ID+VD-without-z tracks).
   > The stage digit is 0 on files written before PXDST 2.87.
   >
   > **Detectors measure different quantities, and what a module did not measure
-  > is `NaN` — never 0, which is a legal measured value.** `D0` and `Z0` are
-  > always `NaN`: a track element measures a point, not an impact parameter.
+  > is `NaN` — never 0, which is a legal measured value.** The reference point
+  > is on the fitted segment, so `D0` and `Z0` are 0 when the coordinate that
+  > defines them was measured and `NaN` otherwise (e.g. `Z0` on an
+  > inner-detector jet-chamber element, which does not measure z).
   > Typically the TPC gives direction and curvature, the inner detector
   > curvature but not the dip angle, and the outer detector, forward RICH and
   > straw tubes direction only. It varies element by element, so test for `NaN`
@@ -626,8 +630,9 @@ VD-only and ID+VD-without-z tracks).
   (9 HPC / 26 EMF), `[1]` number of showers.
 - `fDST_TDID_DriftCalib` (ParticleID, algType 17) — `[0]` signed jet sector,
   `[1]` number of valid drift wires, `[2]` sum of drift times.
-- `fDST_EMCA_HPCClusters` (CalorimeterHit) — per-pad HPC: `energy` =
-  photo-electrons, `energyError` = σ_z, `type` = layer (1..10), `position` mm.
+- `fDST_EMCA_HPCClusters` (CalorimeterHit) — per-pad HPC: `energy` in GeV,
+  `type` = layer (1..10), `position` mm. `energyError` is `NaN`: PXHGET gives no
+  energy error. Its σ_z (the drift-time error on z) is not carried.
 - `fDST_EMCA_FEMCLayers` (CalorimeterHit) — per-layer FEMC: `energy` = layer
   energy, `type` = layer, `cellID` = n hits, `position` = shower centroid.
 - `fDST_HCAL_Towers` (CalorimeterHit) — per-tower HCAL: `energy` = tower
@@ -825,12 +830,16 @@ Helix::fromHelix(D0,phi,omega,Z0,tanLambda)
    -> .params() / .cov() / .momentum(B,q) / .toTrackState(location)
 ```
 
-with `omega = kOmega · q · B · (1/|p_T|)` (the transverse curvature), `kOmega =
-2.99792458e-4`. The TE bank momentum word is `1/|p_T|` or `1/|p|` per its descriptor,
-so `fromTrackElement` takes an `invPt` flag and divides by `sin(theta)` in the `1/|p|`
-case; the perigee path and `momentum()` treat `omega` as curvature too, so all are
-consistent. The covariance is a Jacobian push-forward (`J · C · Jᵀ`). The header is public
-so analysis code can convert track parameters (and recover momentum from
+with `omega` the transverse curvature carrying the sign of the charge, as EDM4hep
+requires. DELPHI signs `1/R` and `1/p` geometrically (positive is counter-clockwise
+seen from +z, opposite to the charge in its field), so the perigee path sets
+`omega = −invR/10` and `fromTrackElement` sets `omega = −kOmega · B · invP`
+(`kOmega = 2.99792458e-4`). The TE bank momentum word is `1/p_T` or `1/p` per its
+descriptor, so `fromTrackElement` takes an `invPt` flag and divides by `sin(theta)`
+in the `1/p` case. The muon/calorimeter extrapolation points of `PA.TRAX` store an
+unsigned `1/|p|`; the converter restores its sign from the track charge. The
+covariance is a Jacobian push-forward (`J · C · Jᵀ`). The header is public so
+analysis code can convert track parameters (and recover momentum from
 `omega` given B and charge) without running the converter. Raw bank *parsing*
 (`TeBank`, `HpcPadDecoder`) is separate and feeds the factories.
 

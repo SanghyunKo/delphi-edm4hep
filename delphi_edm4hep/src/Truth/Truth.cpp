@@ -53,13 +53,14 @@ int unpack_lujets() {
   return sk::NP;
 }
 
+constexpr double kCm2Mm = 10.0;
+
 // Per-event MC truth interaction point (sim-PV), in mm. Handles BOTH sim
 // layouts: shortDST (LPVS at LDTOP-28, first sim-PV x/y/z at Q(ip+4..6) cm) and
 // fullDST (LDTOP-3 -> LSH -> LST -> LPV, x/y/z at Q(lpv+5..7) cm); same decode
 // as delphi-raw-nanoaod fillSimPV. Returns nullopt when no sim banks are present
-// (real data / missing bank). Used to shift the gen-frame truth (primary at
-// ~origin) into the DELSIM/reco frame (event placed at the beamspot XYZP), so
-// MCParticle vertices/endpoints align with the reco PV.
+// (real data / missing bank). Used as the production vertex of generator-only
+// entries, which DELSIM gives no vertex of their own.
 std::optional<std::array<double, 3>> read_sim_pv_mm() {
   if (ph::LDTOP <= 0) return std::nullopt;
   // shortDST sim layout: LPVS at LDTOP-28, x/y/z at +4/+5/+6 (cm). Guard the
@@ -72,9 +73,9 @@ std::optional<std::array<double, 3>> read_sim_pv_mm() {
       const int npvs = ph::IQ(lpvs + 1);
       if (npvs >= 1) {
         const int ip = lpvs + 1 + npvs;
-        return std::array<double, 3>{ph::Q(ip + 4) * 10.0,   // cm -> mm
-                                     ph::Q(ip + 5) * 10.0,
-                                     ph::Q(ip + 6) * 10.0};
+        return std::array<double, 3>{ph::Q(ip + 4) * kCm2Mm,
+                                     ph::Q(ip + 5) * kCm2Mm,
+                                     ph::Q(ip + 6) * kCm2Mm};
       }
     }
   }
@@ -87,9 +88,9 @@ std::optional<std::array<double, 3>> read_sim_pv_mm() {
     if (lst <= 0) continue;
     const int lpv = ph::LQ(lst + 1);
     if (lpv <= 0) continue;
-    return std::array<double, 3>{ph::Q(lpv + 5) * 10.0,   // cm -> mm
-                                 ph::Q(lpv + 6) * 10.0,
-                                 ph::Q(lpv + 7) * 10.0};
+    return std::array<double, 3>{ph::Q(lpv + 5) * kCm2Mm,
+                                 ph::Q(lpv + 6) * kCm2Mm,
+                                 ph::Q(lpv + 7) * kCm2Mm};
   }
   return std::nullopt;
 }
@@ -104,36 +105,55 @@ void TruthGenWriter::emit() {
   edm4hep::MCParticleCollection mc;
   result.handles.reserve(static_cast<std::size_t>(nGen));
 
-  // Per-event frame shift (mm): re-anchor the gen-frame truth onto the
-  // DELSIM/reco frame so MCParticle vertices/endpoints line up with the
-  // reconstructed PV. The gen primary is VP(1) (the LUJETS system/event
-  // vertex; ~origin unless Beams:allowVertexSpread baked a smear into VP);
-  // the sim primary is the sim-PV bank (shortDST LDTOP-28 or fullDST
-  // LDTOP-3->LSH->LST->LPV). shift = simPV - gen_primary preserves relative
-  // displacements (e.g. the B decay length) while moving the primary into the
-  // reco frame. Gated on nGen>=1 so real data (no LUJETS) never reads sim banks
-  // -> zero shift, empty truth.
-  double sx = 0.0, sy = 0.0, sz = 0.0;
-  if (nGen >= 1) {
-    if (auto spv = read_sim_pv_mm()) {
-      sx = (*spv)[0] - static_cast<double>(sk::VP(1, 1));
-      sy = (*spv)[1] - static_cast<double>(sk::VP(1, 2));
-      sz = (*spv)[2] - static_cast<double>(sk::VP(1, 3));
-    }
+  // Gated on nGen>=1 so real data (no LUJETS) never reads sim banks.
+  const auto spv = nGen >= 1 ? read_sim_pv_mm() : std::nullopt;
+
+  // DELSIM records a production vertex (cm, in the frame of the
+  // reconstruction; PSFLUJ, skelana.car:7125-7127; PSHLUJ, skelana.car:
+  // 5390-5392) only for the particles it tracked through the detector.
+  // Generator-only entries -- partons, resonances and the products of decays
+  // done by the generator -- have VP = 0; they are placed from the decay chain
+  // below. LUJETS lists every parent before its daughters.
+  using Position = std::optional<std::array<double, 3>>;
+  std::vector<Position> productionPoint(nGen + 1), decayPoint(nGen + 1);
+  for (int i = 1; i <= nGen; ++i) {
+    const bool trackedByDelsim =
+        sk::VP(i, 1) != 0.f || sk::VP(i, 2) != 0.f || sk::VP(i, 3) != 0.f;
+    if (trackedByDelsim)
+      productionPoint[i] = {sk::VP(i, 1) * kCm2Mm, sk::VP(i, 2) * kCm2Mm,
+                            sk::VP(i, 3) * kCm2Mm};
+  }
+
+  // Decay point of each particle: where one of its tracked daughters starts.
+  // A generator-only daughter is a resonance that decays where it is made, so
+  // its own decay point stands in when no daughter was tracked. Walking the
+  // record backwards visits every daughter before its parent.
+  for (int daughter = nGen; daughter >= 1; --daughter) {
+    const int parent = sk::KP(daughter, 3);
+    if (parent < 1 || parent >= daughter) continue;
+    if (productionPoint[daughter])  decayPoint[parent] = productionPoint[daughter];
+    else if (!decayPoint[parent])   decayPoint[parent] = decayPoint[daughter];
+  }
+
+  // A generator-only particle starts where its parent decayed; failing that,
+  // where its parent started; with no parent, at the simulated primary vertex.
+  for (int particle = 1; particle <= nGen; ++particle) {
+    if (productionPoint[particle]) continue;
+    const int parent = sk::KP(particle, 3);
+    if (parent < 1 || parent >= particle)  productionPoint[particle] = spv;
+    else if (decayPoint[parent])           productionPoint[particle] = decayPoint[parent];
+    else                                   productionPoint[particle] = productionPoint[parent];
   }
 
   // First pass: per-LU-index handle creation. KP(i,1)=status, KP(i,2)=PDG,
-  // PP(i,1..3)=p, PP(i,5)=mass, VP(i,1..3)=production vertex (mm per
-  // SKELANA A.2.5 — no unit conversion), frame-shifted by (sx,sy,sz).
+  // PP(i,1..3)=p, PP(i,5)=mass, VP(i,1..3)=production vertex (cm).
   for (int i = 1; i <= nGen; ++i) {
     auto mp = mc.create();
     mp.setPDG(sk::KP(i, 2));
     mp.setGeneratorStatus(static_cast<std::int16_t>(sk::KP(i, 1)));
     mp.setMomentum({sk::PP(i, 1), sk::PP(i, 2), sk::PP(i, 3)});
     mp.setMass(sk::PP(i, 5));
-    mp.setVertex({static_cast<double>(sk::VP(i, 1)) + sx,
-                  static_cast<double>(sk::VP(i, 2)) + sy,
-                  static_cast<double>(sk::VP(i, 3)) + sz});
+    if (const auto& v = productionPoint[i]) mp.setVertex({(*v)[0], (*v)[1], (*v)[2]});
     mp.setCharge(charge_from_pdg(sk::KP(i, 2)));
     result.handles.push_back(mp);
   }

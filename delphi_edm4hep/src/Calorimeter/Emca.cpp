@@ -23,12 +23,15 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 
 namespace ph = phdst;
 
 namespace delphi_edm4hep::emca {
 
 namespace {
+
+constexpr float kNotMeasured = std::numeric_limits<float>::quiet_NaN();
 
 constexpr float kCm2Mm = 10.f;
 constexpr int   kIdetHPC  = 9;
@@ -85,8 +88,7 @@ void EmcaWriter::emit()
           if (pe <= 0.f) continue;
           auto hit = hpc_col.create();
           hit.setEnergy(pe);
-          hit.setEnergyError(psz);   // sigma_z (cm); kept as the per-pad
-                                     // uncertainty proxy from PXHGET
+          hit.setEnergyError(kNotMeasured);   // PXHGET gives no energy error
           hit.setTime(0.f);          // not available in PXHGET
           hit.setType(player);       // layer 1..10
           hit.setPosition({

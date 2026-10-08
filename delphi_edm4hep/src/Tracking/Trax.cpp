@@ -29,6 +29,7 @@
 #include <edm4hep/TrackState.h>
 
 #include <cmath>
+#include <limits>
 #include <string>
 
 namespace ph = phdst;
@@ -42,6 +43,7 @@ constexpr int kCountWord   = 1;
 constexpr int kWordsNoCov  = 8;
 constexpr int kWordsWithCov = 23;
 constexpr int kCovWords    = 15;
+constexpr float kNotMeasured = std::numeric_limits<float>::quiet_NaN();
 
 // TANAGRA detector id -> edm4hep TrackState location. The calorimeter surfaces
 // are HPC(9), HAB(13), HAF(22) and EMF(26); id 0 is the track's own first
@@ -98,7 +100,7 @@ void TraxWriter::emit()
 
     const int blen   = pawalk::iphreq();
     const int npts   = nint(ph::Q(ltrax + 2));
-    const int charge = pawalk::conversionCharge(lpa);
+    const int q      = pawalk::trueCharge(lpa);
 
     int lpt = ltrax + 3;
     for (int ip = 0; ip < npts; ++ip) {
@@ -110,16 +112,27 @@ void TraxWriter::emit()
       const bool cylindrical = nint(ph::Q(lpt + 2)) != 0;  // IBAR
       const bool has_cov     = n_words >= kWordsWithCov;
 
+      // The central extrapolator writes 1/p signed geometrically, but the
+      // muon/calorimeter one (EXXTR: TOF, HAB, HAF, MUB, MUF, SMC) writes the
+      // unsigned 1/|p| (exx.car:9858, 9902) despite the bank documentation. Its
+      // covariance row still refers to the signed word, so restore that sign:
+      // geometric = -charge. Harmless on the points already signed.
+      const double word = ph::Q(lpt + 8);
+      const double invP = q != 0 ? -q * std::fabs(word) : word;
+
       const auto helix = Helix::fromTrackElement(
           ph::Q(lpt + 3), ph::Q(lpt + 4), ph::Q(lpt + 5),
-          ph::Q(lpt + 6), ph::Q(lpt + 7), ph::Q(lpt + 8),
-          /*invPt=*/false,        // TRAX stores signed 1/p (exx.car:5060-5062)
+          ph::Q(lpt + 6), ph::Q(lpt + 7), invP,
+          /*invPt=*/false,
           cylindrical,
           has_cov ? covariance(lpt, cylindrical) : CovMatrix6{},
-          charge, B);
+          B);
 
-      out.pa_to_states[paIdx].push_back(
-          helix.toTrackState(locationForDetector(det_id)));
+      auto state = helix.toTrackState(locationForDetector(det_id));
+      // Not every TRAX point carries a covariance; mark it as not measured
+      // rather than leaving zeros that read as exact.
+      if (!has_cov) state.covMatrix.values.fill(kNotMeasured);
+      out.pa_to_states[paIdx].push_back(state);
 
       lpt += n_words + kCountWord;
     }

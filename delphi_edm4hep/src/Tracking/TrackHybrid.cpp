@@ -88,7 +88,8 @@ void TrackHybridWriter::emit()
       }
       if (const auto pa = pa_to_lpa.find(paIdx); pa != pa_to_lpa.end()) {
         if (const auto b = lpa_to_btag.find(pa->second); b != lpa_to_btag.end()) {
-          out.addToTrackStates(aabtag::vertexState(b->second));
+          out.addToTrackStates(
+              aabtag::vertexState(b->second, pawalk::trueCharge(pa->second)));
         }
       }
     }

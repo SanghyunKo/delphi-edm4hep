@@ -58,11 +58,9 @@ int findMatch(
     if (!lk.found) continue;
     const auto& ts = lk.state;
 
-    // Charge gate (intentionally weak): the DELPHI 1/R has sign
-    // OPPOSITE to charge (dst_content.txt PA.MAIN), so omega and
-    // charge are anti-correlated after conversion. Rather than
-    // re-introduce that DELPHI-specific sign convention into the
-    // EDM4hep-side helix, we trust the geometric uniqueness of the
+    // Charge gate (intentionally weak): both sides are converted by
+    // Helix::fromPerigee, so omega carries the sign of the charge on
+    // each. Rather than gate on it, we trust the geometric uniqueness of the
     // perigee within tolerance — same physical track gives identical
     // (d0, z0, invR) on both DST levels to float precision. The
     // legacy converter took the same approach (gate by PA.MAIN
