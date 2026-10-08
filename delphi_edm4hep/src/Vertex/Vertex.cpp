@@ -385,7 +385,8 @@ void VertexWriter::emit()
     const auto& tracks = frame_.get<edm4hep::TrackCollection>(
         makeName("TRAC", "Tracks"));
     for (const auto& trk : tracks) {
-      float d0pv = -999.f, z0pv = -999.f; std::int32_t flag = 0;
+      float d0pv = -999.f, z0pv = -999.f;
+      std::int32_t flag = kImpactMissing;
       if (have_pv) {
         // AtIP track state (referencePoint = origin by construction).
         for (const auto& ts : trk.getTrackStates()) {
